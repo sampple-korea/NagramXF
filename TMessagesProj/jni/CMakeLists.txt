@@ -677,7 +677,6 @@ target_link_libraries(${NATIVE_LIB}
 if (NOT DEFINED ENABLE_PLUGINS)
     set(ENABLE_PLUGINS ON)
 endif ()
-message(WARNING "chaquopy bridge gate: ABI=${ANDROID_ABI} ENABLE_PLUGINS=${ENABLE_PLUGINS} GEN_DIR=${CHAQUOPY_GEN_DIR} TARGET_ROOT=${CHAQUOPY_TARGET_ROOT}")
 if (ENABLE_PLUGINS AND (${ANDROID_ABI} STREQUAL "arm64-v8a" OR ${ANDROID_ABI} STREQUAL "armeabi-v7a"))
     set(LSPLANT_BUILD_SHARED OFF CACHE INTERNAL "" FORCE)
     set(DEX_BUILDER_BUILD_SHARED OFF CACHE INTERNAL "" FORCE)
@@ -735,9 +734,13 @@ if (ENABLE_PLUGINS AND (${ANDROID_ABI} STREQUAL "arm64-v8a" OR ${ANDROID_ABI} ST
     if (NOT DEFINED CHAQUOPY_GEN_DIR)
         set(CHAQUOPY_GEN_DIR ${CMAKE_HOME_DIRECTORY}/../build/generated/chaquopy-cython)
     endif ()
+    if (NOT DEFINED CHAQUOPY_LIB_OUT)
+        set(CHAQUOPY_LIB_OUT ${CMAKE_HOME_DIRECTORY}/../build/chaquopy/lib)
+    endif ()
     # Normalize Windows backslashes so add_library never sees a mixed-separator path.
     file(TO_CMAKE_PATH "${CHAQUOPY_GEN_DIR}" CHAQUOPY_GEN_DIR)
     file(TO_CMAKE_PATH "${CHAQUOPY_TARGET_ROOT}" CHAQUOPY_TARGET_ROOT)
+    file(TO_CMAKE_PATH "${CHAQUOPY_LIB_OUT}" CHAQUOPY_LIB_OUT)
     # Per-ABI headers + libpython from the target zip (pyconfig.h differs by word size).
     set(CHAQUOPY_PYINC ${CHAQUOPY_TARGET_ROOT}/${ANDROID_ABI}/include/python3.11)
     set(CHAQUOPY_PYLIB ${CHAQUOPY_TARGET_ROOT}/${ANDROID_ABI}/jniLibs/${ANDROID_ABI}/libpython3.11.so)
@@ -750,8 +753,10 @@ if (ENABLE_PLUGINS AND (${ANDROID_ABI} STREQUAL "arm64-v8a" OR ${ANDROID_ABI} ST
     # LONG_BIT from pyconfig's SIZEOF_LONG.
     target_compile_options(chaquopy PRIVATE -ULONG_BIT)
     target_link_libraries(chaquopy ${CHAQUOPY_PYLIB} android log dl)
-    # CPython extension module: no "lib" prefix, plain "chaquopy.so".
-    set_target_properties(chaquopy PROPERTIES PREFIX "" OUTPUT_NAME "chaquopy")
+    # CPython extension module: no "lib" prefix, plain "chaquopy.so". Emit to a fixed path so the
+    # Gradle packaging task can find it deterministically (the AGP per-config hash dir varies).
+    set_target_properties(chaquopy PROPERTIES PREFIX "" OUTPUT_NAME "chaquopy"
+            LIBRARY_OUTPUT_DIRECTORY "${CHAQUOPY_LIB_OUT}/${ANDROID_ABI}")
 
     add_library(chaquopy_java SHARED
             ${CHAQUOPY_GEN_DIR}/chaquopy_java.c
