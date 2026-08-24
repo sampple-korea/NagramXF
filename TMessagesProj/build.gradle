@@ -124,6 +124,11 @@ android {
 
     flavorDimensions 'runtime'
 
+    // Precompute as plain strings: nested GString interpolation inside the flavor's
+    // cmake.arguments list silently produced empty values on the plugin variant.
+    def chaquopyGenDirArg = "-DCHAQUOPY_GEN_DIR=" + file("$buildDir/generated/chaquopy-cython").absolutePath.replace('\\', '/')
+    def chaquopyTargetRootArg = "-DCHAQUOPY_TARGET_ROOT=" + file("$buildDir/chaquopy-target").absolutePath.replace('\\', '/')
+
     productFlavors {
         normal {
             dimension 'runtime'
@@ -133,9 +138,7 @@ android {
         plugin {
             dimension 'runtime'
             ndk.abiFilters.addAll(pluginAbis)
-            externalNativeBuild.cmake.arguments '-DENABLE_PLUGINS=ON',
-                    "-DCHAQUOPY_GEN_DIR=${file("$buildDir/generated/chaquopy-cython").absolutePath.replace('\\', '/')}",
-                    "-DCHAQUOPY_TARGET_ROOT=${file("$buildDir/chaquopy-target").absolutePath.replace('\\', '/')}"
+            externalNativeBuild.cmake.arguments '-DENABLE_PLUGINS=ON', chaquopyGenDirArg, chaquopyTargetRootArg
             proguardFiles 'proguard-plugin-rules.pro'
         }
     }
