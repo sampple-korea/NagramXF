@@ -1133,7 +1133,10 @@ public class MessageHelper extends BaseController {
             if (messageOwner.voiceTranscriptionOpen) {
                 return messageOwner.translatedVoiceTranscription != null ? messageOwner.translatedVoiceTranscription.entities : null;
             } else {
-                return messageOwner.translatedText != null ? mergeAppendTranslatedEntities(messageOwner.entities, messageOwner.translatedText, text) : null;
+                if (messageOwner.translatedText != null) {
+                    return mergeAppendTranslatedEntities(messageOwner.entities, messageOwner.translatedText, text);
+                }
+                return text != null && (text == messageOwner.message || TextUtils.equals(text, messageOwner.message)) ? messageOwner.entities : null;
             }
         }
         if (messageOwner.translated && messageOwner.translatedText != null) {
