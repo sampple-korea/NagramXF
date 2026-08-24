@@ -1,0 +1,119 @@
+name: Validate PR 97 head
+
+on:
+  push:
+    branches:
+      - ci/validate-pr97-c617
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Current-head unit test and compile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: c617aef91e3e92057f1f266a4a43a9802646598e
+      - name: Verify PR head
+        run: test "$(git rev-parse HEAD)" = "c617aef91e3e92057f1f266a4a43a9802646598e"
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'build-tools;36.0.0 ndk;29.0.14206865 platforms;android-36'
+      - name: Configure test signing
+        run: |
+          rm -f TMessagesProj/release.keystore
+          keytool -genkeypair -keystore TMessagesProj/release.keystore -storepass android -alias androiddebugkey -keypass android -dname 'CN=CI' -keyalg RSA -validity 10000
+          cat >> local.properties <<EOF
+          sdk.dir=${ANDROID_HOME}
+          KEYSTORE_PASS=android
+          ALIAS_NAME=androiddebugkey
+          ALIAS_PASS=android
+          EOF
+      - name: Run current regression tests
+        run: ./gradlew :TMessagesProj:testNormalDebugUnitTest --tests 'tw.nekomimi.nekogram.helpers.TranslationEntityHandlingTest' --no-daemon --max-workers=2
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr97-current-head-test-reports
+          path: |
+            TMessagesProj/build/reports/tests/testNormalDebugUnitTest/
+            TMessagesProj/build/test-results/testNormalDebugUnitTest/
+          if-no-files-found: error
+
+  staging:
+    name: Current-head staging APKs
+    runs-on: ubuntu-latest
+    env:
+      CCACHE_COMPILERCHECK: '%compiler% -dumpmachine; %compiler% -dumpversion'
+      CCACHE_HARDLINK: 'true'
+      CCACHE_NOHASHDIR: 'true'
+      CCACHE_MAXSIZE: '10G'
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          ref: c617aef91e3e92057f1f266a4a43a9802646598e
+          submodules: recursive
+      - name: Verify PR head
+        run: test "$(git rev-parse HEAD)" = "c617aef91e3e92057f1f266a4a43a9802646598e"
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          append-timestamp: false
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'build-tools;36.0.0 ndk;29.0.14206865 platforms;android-36'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Cython
+        run: pip install Cython==0.29.37
+      - name: Configure test signing
+        run: |
+          rm -f TMessagesProj/release.keystore
+          keytool -genkeypair -keystore TMessagesProj/release.keystore -storepass android -alias androiddebugkey -keypass android -dname 'CN=CI' -keyalg RSA -validity 10000
+          cat >> local.properties <<EOF
+          sdk.dir=${ANDROID_HOME}
+          KEYSTORE_PASS=android
+          ALIAS_NAME=androiddebugkey
+          ALIAS_PASS=android
+          EOF
+      - name: Build all staging APKs
+        env:
+          BUILD_TIMESTAMP: '0'
+          COMMIT_ID: c617aef91e3e92057f1f266a4a43a9802646598e
+        run: ./gradlew :TMessagesProj:assembleStaging --no-daemon
+      - name: Upload normal staging APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr97-current-head-normal-staging
+          path: TMessagesProj/build/outputs/apk/normal/staging/
+          if-no-files-found: error
+      - name: Upload plugin staging APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr97-current-head-plugin-staging
+          path: TMessagesProj/build/outputs/apk/plugin/staging/
+          if-no-files-found: error
